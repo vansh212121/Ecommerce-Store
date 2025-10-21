@@ -5,6 +5,7 @@ import {
   ShoppingCart,
   Tag,
   LogOut,
+  Layers2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -16,6 +17,7 @@ const AdminLayout = () => {
     { path: "/admin/orders", label: "Orders", icon: ShoppingCart },
     { path: "/admin/inventory", label: "Inventory", icon: Package },
     { path: "/admin/promotions", label: "Promotions", icon: Tag },
+    { path: "/admin/attributes", label: "Attributes", icon: Layers2 },
   ];
 
   const isActive = (path) => location.pathname === path;

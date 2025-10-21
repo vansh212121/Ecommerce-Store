@@ -24,6 +24,7 @@ import Inventory from "./pages/admin/Inventory";
 import Promotions from "./pages/admin/Promotions";
 import NotFound from "./pages/NotFound";
 import { Toaster } from "sonner";
+import ProductAttributes from "./pages/admin/AttributeManager";
 
 const App = () => (
   <CartProvider>
@@ -191,6 +192,7 @@ const App = () => (
             <Route path="orders" element={<Orders />} />
             <Route path="inventory" element={<Inventory />} />
             <Route path="promotions" element={<Promotions />} />
+            <Route path="attributes" element={<ProductAttributes />} />
           </Route>
 
           {/* 404 */}
