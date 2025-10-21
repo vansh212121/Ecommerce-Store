@@ -10,13 +10,15 @@ from sqlalchemy.ext.asyncio.session import AsyncSession
 from app.core.config import settings
 from app.core.security import token_manager, TokenType
 from app.db.session import get_session
-from app.models.user_model import User
+from app.models.user_model import User, UserRole
 
 from app.core.exceptions import (
     InvalidToken,
     ResourceNotFound,
     TokenRevoked,
     RateLimitExceeded,
+    InactiveUser,
+    NotAuthorized,
 )
 from app.services.user_service import UserService
 from app.services.rate_limit_service import (
@@ -135,6 +137,59 @@ async def get_current_user(
     return await _authenticate_user_from_token(
         request, db, token, user_svc, rate_limit_svc
     )
+
+
+async def get_current_active_user(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """Ensure the current user is active."""
+    if not current_user.is_active:
+        logger.warning(
+            "Inactive user attempted access",
+            extra={"user_id": str(current_user.id), "user_email": current_user.email},
+        )
+        raise InactiveUser()
+    return current_user
+
+
+class RoleChecker:
+    """
+    Dependency class for role-based access control.
+    Uses hierarchical role checking based on UserRole enum priorities.
+    """
+
+    def __init__(self, required_role: UserRole):
+        self.required_role = required_role
+
+    def __call__(
+        self, request: Request, current_user: User = Depends(get_current_active_user)
+    ) -> User:
+        """Check if user has sufficient role privileges."""
+
+        # 1. Explicitly convert the current user's role (which might be a string)
+        current_user_role_enum = UserRole(current_user.role)
+
+        # 2. Compare the integer priorities directly. This is foolproof.
+        if current_user_role_enum.priority < self.required_role.priority:
+            logger.warning(
+                "Insufficient privileges for user.",
+                extra={
+                    "user_id": str(current_user.id),
+                    "user_role": current_user.role,
+                    "required_role": self.required_role.value,
+                    "path": request.url.path,
+                },
+            )
+            raise NotAuthorized(
+                f"Insufficient privileges. A role of '{self.required_role.value}' or higher is required."
+            )
+
+        return current_user
+
+
+# Role-based dependency instances
+require_user = RoleChecker(UserRole.USER)
+require_admin = RoleChecker(UserRole.ADMIN)
 
 
 # ================== RATE LIMITING ==================
