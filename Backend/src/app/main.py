@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.exception_handler import register_exception_handlers
 from app.db.session import db
+from app.db.redis_conn import redis_client_instance
 from app.utils.deps import get_health_status
 from app.db import base
 
@@ -13,9 +14,12 @@ from app.db import base
 async def lifespan(app: FastAPI):
     """
     Handles application startup and shutdown events.
+    Connects to the database and redis.
     """
     await db.connect()
+    await redis_client_instance.connect()
     yield
+    await redis_client_instance.disconnect()
     await db.disconnect()
 
 
@@ -28,17 +32,16 @@ def create_application() -> FastAPI:
         description=settings.DESCRIPTION,
         lifespan=lifespan,
     )
+    # This function is not yet defined, we can comment it out for now
     register_exception_handlers(app)
 
-    # Routes Here
-
-    origins = [
-        "http://localhost:5173",  # Vite/React frontend dev server
-    ]
+    # --- API Router Will Go Here ---
+    # from app.api.v1.api import api_router
+    # app.include_router(api_router, prefix=settings.API_V1_STR)
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=origins,
+        allow_origins=[str(origin) for origin in settings.CORS_ORIGINS],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
