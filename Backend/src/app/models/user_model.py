@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from typing import Optional
+from typing import Optional, TYPE_CHECKING, List
 from enum import Enum as PyEnum
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy import func, Column, String, DateTime
@@ -8,6 +8,12 @@ from sqlalchemy.dialects.postgresql import (
     UUID as PG_UUID,
 )
 from sqlmodel import Field, SQLModel, Relationship
+
+if TYPE_CHECKING:
+    from .wishlist_model import Wishlist
+    from .cart_model import Cart
+    from .order_model import Order
+    from .adress_model import Address
 
 
 class UserRole(str, PyEnum):
@@ -59,6 +65,20 @@ class User(UserBase, table=True):
 
     hashed_password: str = Field(nullable=False, exclude=True)
 
+    # Relationships
+    wishlist_items: list["Wishlist"] = Relationship(
+        back_populates="user", sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
+    cart: Optional["Cart"] = Relationship(
+        back_populates="user", sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
+    orders: List["Order"] = Relationship(
+        back_populates="user", sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
+    addresses: List["Address"] = Relationship(
+        back_populates="user", sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
+
     # Timestamps
     created_at: datetime = Field(
         sa_column=Column(
@@ -76,8 +96,6 @@ class User(UserBase, table=True):
     tokens_valid_from_utc: Optional[datetime] = Field(
         default=None, sa_column=Column(DateTime(timezone=True))
     )
-
-    # Relationships
 
     # --- Computed properties (data-focused) ---
     def __repr__(self) -> str:
