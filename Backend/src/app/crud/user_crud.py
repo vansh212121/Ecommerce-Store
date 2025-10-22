@@ -120,6 +120,22 @@ class UserRepository(BaseRepository[User]):
         default_exception=InternalServerError,
         message="An unexpected database error occurred.",
     )
+    async def count(
+        self, db: AsyncSession, *, filters: Optional[Dict[str, Any]] = None
+    ) -> int:
+        """Count users with optional filters."""
+        query = select(func.count(self.model.id))
+
+        if filters:
+            query = self._apply_filters(query, filters)
+
+        result = await db.execute(query)
+        return result.scalar_one()
+
+    @handle_exceptions(
+        default_exception=InternalServerError,
+        message="An unexpected database error occurred.",
+    )
     async def create(self, db: AsyncSession, *, db_obj: User) -> User:
         """Create a new user. Expects a pre-constructed User model object."""
         db.add(db_obj)
@@ -171,7 +187,7 @@ class UserRepository(BaseRepository[User]):
         default_exception=InternalServerError,
         message="An unexpected database error occurred.",
     )
-    async def exists(self, db: AsyncSession, *, obj_id: int) -> bool:
+    async def exists(self, db: AsyncSession, *, obj_id: uuid.UUID) -> bool:
         """Check if a user exists by ID."""
         statement = select(func.count(self.model.id)).where(self.model.id == obj_id)
         result = await db.execute(statement)
@@ -192,6 +208,12 @@ class UserRepository(BaseRepository[User]):
     def _apply_filters(self, query, filters: Dict[str, Any]):
         """Apply filters to query."""
         conditions = []
+
+        if "role" in filters and filters["role"]:
+            conditions.append(User.role == filters["role"])
+
+        if "is_active" in filters and filters["is_active"] is not None:
+            conditions.append(User.is_active == filters["is_active"])
 
         if "search" in filters and filters["search"]:
             search_term = f"%{filters['search']}%"

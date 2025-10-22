@@ -7,6 +7,7 @@ from app.core.exception_handler import register_exception_handlers
 from app.db.session import db
 from app.db.redis_conn import redis_client_instance
 from app.utils.deps import get_health_status
+from app.api.v1.endpoints import user, auth, admin
 from app.db import base
 
 
@@ -36,8 +37,9 @@ def create_application() -> FastAPI:
     register_exception_handlers(app)
 
     # --- API Router Will Go Here ---
-    # from app.api.v1.api import api_router
-    # app.include_router(api_router, prefix=settings.API_V1_STR)
+    app.include_router(auth.router)
+    app.include_router(user.router)
+    app.include_router(admin.router)
 
     app.add_middleware(
         CORSMiddleware,

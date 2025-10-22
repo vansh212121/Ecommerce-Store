@@ -11,6 +11,7 @@ from pydantic import (
     model_validator,
 )
 from app.core.exceptions import ValidationError
+from app.models.user_model import UserRole
 
 
 class UserBase(BaseModel):
@@ -40,11 +41,9 @@ class UserBase(BaseModel):
 
 
 class UserCreate(UserBase):
-    """Schema for creating new users."""
-
     password: str = Field(
         ...,
-        min_length=8,
+        min_length=6,
         max_length=30,
         description="Strong password",
         examples=["SecurePass123!"],
@@ -53,7 +52,6 @@ class UserCreate(UserBase):
     @field_validator("password")
     @classmethod
     def validate_password_strength(cls, v: str) -> str:
-        """Ensure password has uppercase, lowercase, digit, and special character."""
         if not re.search(r"[A-Z]", v):
             raise ValidationError("Password must contain at least one uppercase letter")
         if not re.search(r"[a-z]", v):
@@ -108,6 +106,8 @@ class UserResponse(UserBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID = Field(..., description="User ID")
+    role: UserRole = Field(..., description="User role")
+    is_active: bool = Field(..., description="Account active status")
     created_at: datetime = Field(..., description="Registration timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
 
@@ -142,18 +142,14 @@ class UserSearchParams(BaseModel):
         max_length=100,
         description="Search in email, name",
     )
+    is_active: Optional[bool] = Field(None, description="Filter by active status")
+    role: Optional[UserRole] = Field(None, description="Filter by role")
     created_after: Optional[date] = Field(
         None, description="Filter users created after this date"
     )
     created_before: Optional[date] = Field(
         None, description="Filter users created before this date"
     )
-
-    @field_validator("search")
-    @classmethod
-    def clean_search(cls, v: Optional[str]) -> Optional[str]:
-        """Clean up search query."""
-        return v.strip() if v else v
 
     @model_validator(mode="after")
     def validate_date_range(self) -> "UserSearchParams":
@@ -162,3 +158,16 @@ class UserSearchParams(BaseModel):
             if self.created_after > self.created_before:
                 raise ValidationError("created_after must be before created_before")
         return self
+
+
+__all__ = [
+    "UserBase",
+    "UserCreate",
+    "UserUpdate",
+    # Response schemas
+    "UserResponse",
+    # List schemas
+    "UserListResponse",
+    # List and Search Schemas
+    "UserSearchParams",
+]

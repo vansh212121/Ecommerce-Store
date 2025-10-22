@@ -98,5 +98,9 @@ class User(UserBase, table=True):
     )
 
     # --- Computed properties (data-focused) ---
+    @property
+    def is_admin(self) -> bool:
+        return UserRole(self.role) == UserRole.ADMIN
+
     def __repr__(self) -> str:
         return f"<User(id='{self.id}', email='{self.email}')>"

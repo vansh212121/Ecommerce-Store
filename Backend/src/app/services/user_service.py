@@ -18,8 +18,9 @@ from app.schemas.user_schema import (
     UserCreate,
     UserResponse,
 )
-from app.models.user_model import User
+from app.models.user_model import User, UserRole
 from app.services.cache_service import cache_service
+from app.services.auth_service import auth_service
 from app.core.exception_utils import raise_for_status
 from app.core.exceptions import (
     ResourceNotFound,
@@ -59,6 +60,11 @@ class UserService:
         Raises:
             NotAuthorized: If user lacks permission for the action
         """
+
+        # Admins have super powers
+        if current_user.is_admin:
+            return
+
         # Users can only modify their own account
         is_not_self = str(current_user.id) != str(target_user.id)
         raise_for_status(
@@ -75,16 +81,6 @@ class UserService:
         cache-aside pattern.
         """
 
-        # async def _loader() -> Optional[User]:
-        #     return await self.user_repository.get(db=db, obj_id=user_id)
-
-        # user = await cache_service.get_or_set(
-        #     schema_type=User,
-        #     obj_id=user_id,
-        #     loader=_loader,
-        #     ttl=300,  # Cache for 5 minutes
-        # )
-        # return user
         return await self.user_repository.get(db=db, obj_id=user_id)
 
     async def _load_user_schema_from_db(
@@ -106,15 +102,23 @@ class UserService:
         self, db: AsyncSession, *, user_id: uuid.UUID, current_user: User
     ) -> Optional[UserResponse]:
         """Retrieve user by it's ID"""
-        # Fine-grained authorization check
-        if str(current_user.id) != str(user_id):
-            raise NotAuthorized("You are not authorized to view this user's profile.")
 
         user = await cache_service.get_or_set(
             schema_type=UserResponse,
             obj_id=user_id,
             loader=lambda: self._load_user_schema_from_db(db=db, user_id=user_id),
             ttl=300,  # Cache for 5 minutes
+        )
+
+        # Fine-grained authorization check
+        if current_user.is_admin:
+            return user
+        is_not_self = current_user.id != user.id
+
+        raise_for_status(
+            condition=(is_not_self),
+            exception=NotAuthorized,
+            detail="You are not authorized to view this user's profile.",
         )
 
         self._logger.debug(f"User {user_id} retrieved by user {current_user.id}")
@@ -150,6 +154,12 @@ class UserService:
             NotAuthorized: If user lacks permission to list users
             ValidationError: If pagination parameters are invalid
         """
+        raise_for_status(
+            condition=(current_user.role < UserRole.ADMIN),
+            exception=NotAuthorized,
+            detail="Only administrators can list users.",
+        )
+
         # Input validation
         if skip < 0:
             raise ValidationError("Skip parameter must be non-negative")
@@ -231,6 +241,8 @@ class UserService:
             current_user=current_user, target_user=user_to_update, action="update"
         )
 
+        # await self._validate_user_update(db, user_data, user_to_update)
+
         update_dict = user_data.model_dump(exclude_unset=True, exclude_none=True)
 
         # Remove timestamp fields that should not be manually updated
@@ -255,6 +267,135 @@ class UserService:
         )
         return updated_user
 
+    async def deactivate_user(
+        self, db: AsyncSession, *, user_id_to_deactivate: uuid.UUID, current_user: User
+    ) -> User:
+        """
+        Deactivates a user account.
+
+        Args:
+            db: Database session
+            user_id_to_deactivate: ID of user to deactivate
+            current_user: User making the request
+
+        Returns:
+            Dict with success message
+
+        Raises:
+            ResourceNotFound: If user doesn't exist
+            NotAuthorized: If current user lacks permission
+            ValidationError: If trying to deactivate already inactive user
+        """
+        # 1. Fetch the user to deactivate
+        user_to_deactivate = await self.user_repository.get(
+            db=db, obj_id=user_id_to_deactivate
+        )
+        raise_for_status(
+            condition=(user_to_deactivate is None),
+            exception=ResourceNotFound,
+            detail=f"User not Found",
+            resource_type="User",
+        )
+
+        # 2. Perform authorization check
+        self._check_authorization(
+            current_user=current_user,
+            target_user=user_to_deactivate,
+            action="deactivate",
+        )
+
+        # 3. Check if user is already deactivated
+        if not user_to_deactivate.is_active:
+            raise ValidationError("User is already deactivated")
+
+        # 4. Prevent self-deactivation for admins (business rule)
+        if current_user.id == user_id_to_deactivate and current_user.is_admin:
+            raise ValidationError("Administrators cannot deactivate their own accounts")
+
+        # 5. Update user status
+        deactivated_user = await self.user_repository.update(
+            db=db,
+            user=user_to_deactivate,
+            fields_to_update={"is_active": False},
+        )
+
+        # 6. Invalidate cache and potentially revoke tokens
+        await cache_service.invalidate(User, user_id_to_deactivate)
+
+        auth_service.revoke_all_user_tokens(db=db, user=user_to_deactivate)
+
+        self._logger.info(
+            f"User {user_id_to_deactivate} deactivated by {current_user.id}",
+            extra={
+                "deactivated_user_id": user_id_to_deactivate,
+                "deactivator_id": current_user.id,
+            },
+        )
+        return deactivated_user
+
+    async def activate_user(
+        self, db: AsyncSession, *, user_id_to_activate: uuid.UUID, current_user: User
+    ) -> User:
+        """Activates a user's account. (Admin only)"""
+
+        # We just need to fetch the target user.
+        user_to_activate = await self.user_repository.get(
+            db=db, obj_id=user_id_to_activate
+        )
+        raise_for_status(
+            condition=(user_to_activate is None),
+            exception=ResourceNotFound,
+            detail=f"User with id {user_id_to_activate} not found.",
+            resource_type="User",
+        )
+
+        raise_for_status(
+            condition=(user_to_activate.is_active),
+            exception=ValidationError,  # Or a more specific BadRequestException
+            detail="User is already active.",
+        )
+
+        activated_user = await self.user_repository.update(
+            db=db, user=user_to_activate, fields_to_update={"is_active": True}
+        )
+
+        await cache_service.invalidate(User, user_id_to_activate)
+        self._logger.info(f"User {user_id_to_activate} activated by {current_user.id}")
+        return activated_user
+
+    async def change_role(
+        self,
+        db: AsyncSession,
+        *,
+        user_id_to_change: uuid.UUID,
+        new_role: UserRole,
+        current_user: User,
+    ) -> User:
+        """Changes a user's role. (Admin only)"""
+        raise_for_status(
+            condition=(user_id_to_change == current_user.id),
+            exception=ValidationError,
+            detail="Administrators cannot change their own role.",
+        )
+
+        user_to_change = await self.user_repository.get(db=db, obj_id=user_id_to_change)
+        raise_for_status(
+            condition=(user_to_change is None),
+            exception=ResourceNotFound,
+            detail=f"User with id {user_id_to_change} not found.",
+            resource_type="User",
+        )
+
+        updated_user = await self.user_repository.update(
+            db=db, user=user_to_change, fields_to_update={"role": new_role}
+        )
+
+        await cache_service.invalidate(User, user_id_to_change)
+        self._logger.info(
+            f"User {user_id_to_change} role changed to {new_role.value} by {current_user.id}"
+        )
+        return updated_user
+
     async def delete_user(
         self, db: AsyncSession, *, user_id_to_delete: uuid.UUID, current_user: User
     ) -> Dict[str, str]:
@@ -271,6 +412,8 @@ class UserService:
 
         Raises:
             ResourceNotFound: If user doesn't exist
+            NotAuthorized: If current user lacks permission
+            ValidationError: If trying to delete own account or last admin
         """
         # Input validation
 
@@ -291,10 +434,15 @@ class UserService:
             action="delete",
         )
 
-        # 3. Perform the deletion
+        # 3. Business rules validation
+        await self._validate_user_deletion(db, user_to_delete, current_user)
+
+        # 4. Perform the deletion
         await self.user_repository.delete(db=db, obj_id=user_id_to_delete)
 
-        # 4. Clean up cache and tokens
+        auth_service.revoke_all_user_tokens(db=db, user=user_to_delete)
+
+        # 5. Clean up cache and tokens
         await cache_service.invalidate(User, user_id_to_delete)
 
         self._logger.warning(
@@ -305,6 +453,33 @@ class UserService:
                 "deleted_user_email": user_to_delete.email,
             },
         )
+
+    async def _validate_user_deletion(
+        self, db: AsyncSession, user_to_delete: User, current_user: User
+    ) -> None:
+        """
+        Validates user deletion for business rules.
+
+        Args:
+            db: Database session
+            user_to_delete: User to be deleted
+            current_user: User performing the deletion
+
+        Raises:
+            ValidationError: If deletion violates business rules
+        """
+
+        # Prevent deletion of the last admin
+        if user_to_delete.is_admin:
+            admin_count = await self.user_repository.count(
+                db=db, filters={"role": UserRole.ADMIN, "is_active": True}
+            )
+            if admin_count <= 1:
+                raise ValidationError(
+                    "Cannot delete the last active administrator account"
+                )
+
+        return {"message": "User deleted successfully"}
 
 
 user_service = UserService()
