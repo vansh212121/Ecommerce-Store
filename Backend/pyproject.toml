@@ -23,7 +23,8 @@ dependencies = [
     "python-jose (>=3.5.0,<4.0.0)",
     "python-multipart (>=0.0.20,<0.0.21)",
     "argon2-cffi (>=25.1.0,<26.0.0)",
-    "psycopg2-binary (>=2.9.11,<3.0.0)"
+    "psycopg2-binary (>=2.9.11,<3.0.0)",
+    "python-slugify (>=8.0.4,<9.0.0)"
 ]
 
 

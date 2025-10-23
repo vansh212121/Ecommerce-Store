@@ -75,6 +75,17 @@ class CategoryRepository(BaseRepository[Category]):
         default_exception=InternalServerError,
         message="An unexpected database error occurred.",
     )
+    async def get_by_slug(self, db: AsyncSession, *, slug: str) -> Optional[Category]:
+        """Get category by slug"""
+
+        statement = select(self.model).where(self.model.slug == slug)
+        result = await db.execute(statement)
+        return result.scalar_one_or_none()
+
+    @handle_exceptions(
+        default_exception=InternalServerError,
+        message="An unexpected database error occurred.",
+    )
     async def get_all(
         self,
         db: AsyncSession,
