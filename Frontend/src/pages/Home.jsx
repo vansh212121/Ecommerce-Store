@@ -4,7 +4,7 @@ import ProductCard from "@/components/ProductCard";
 import { extendedProducts } from "@/lib/extendedMockData";
 import { motion } from "framer-motion";
 import { ArrowRight, Sparkles, Star, Truck, Shield, Heart } from "lucide-react";
-import heroBanner from "@/assets/hero-banner.jpg";
+import heroBanner from "@/assets/products/6.jpg";
 import menCategory from "@/assets/categories/men.jpg";
 import womenCategory from "@/assets/categories/women.jpg";
 import unisexCategory from "@/assets/categories/unisex.jpg";
@@ -46,7 +46,7 @@ const Home = () => {
       <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden bg-gradient-to-br from-primary/5 via-background to-secondary/30">
         {/* Background Pattern */}
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-primary/5 via-transparent to-transparent" />
-        
+
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <motion.div
@@ -57,9 +57,11 @@ const Home = () => {
             >
               <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-6">
                 <Sparkles className="h-4 w-4 text-primary" />
-                <span className="text-sm font-medium text-primary">New Collection Available</span>
+                <span className="text-sm font-medium text-primary">
+                  New Collection Available
+                </span>
               </div>
-              
+
               <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold mb-6 tracking-tight leading-tight">
                 Elevate Your
                 <br />
@@ -67,12 +69,13 @@ const Home = () => {
                   Everyday Style
                 </span>
               </h1>
-              
+
               <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-2xl leading-relaxed">
-                Discover our curated collection of contemporary clothing designed for the modern wardrobe. 
-                Timeless pieces crafted with premium materials and sustainable practices.
+                Discover our curated collection of contemporary clothing
+                designed for the modern wardrobe. Timeless pieces crafted with
+                premium materials and sustainable practices.
               </p>
-              
+
               <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
                 <Button size="lg" asChild className="gap-2 h-12 px-8">
                   <Link to="/new">
@@ -80,7 +83,12 @@ const Home = () => {
                     <ArrowRight className="h-4 w-4" />
                   </Link>
                 </Button>
-                <Button size="lg" variant="outline" asChild className="h-12 px-8">
+                <Button
+                  size="lg"
+                  variant="outline"
+                  asChild
+                  className="h-12 px-8"
+                >
                   <Link to="/collections">Explore Collections</Link>
                 </Button>
               </div>
@@ -109,14 +117,17 @@ const Home = () => {
               transition={{ duration: 0.8, delay: 0.2 }}
               className="relative"
             >
-              <div className="relative rounded-3xl overflow-hidden aspect-[4/5] border-2 border-border/50 shadow-2xl">
+              <div
+                className="relative rounded-3xl overflow-hidden aspect-[4/5] border-2 border-border/50 shadow-2xl transition-all duration-500 ease-out
+                  hover:scale-[1.03] hover:shadow-[0_20px_40px_rgba(0,0,0,0.15)]"
+              >
                 <img
                   src={heroBanner}
                   alt="Modern fashion collection"
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-contain object-center"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-background/10 to-transparent" />
-                
+
                 {/* Floating Badges */}
                 <div className="absolute top-6 right-6">
                   <Badge className="bg-background/80 backdrop-blur-sm text-foreground border-border">
@@ -124,7 +135,10 @@ const Home = () => {
                   </Badge>
                 </div>
                 <div className="absolute bottom-6 left-6">
-                  <Badge variant="secondary" className="bg-primary/20 text-primary border-primary/30">
+                  <Badge
+                    variant="secondary"
+                    className="bg-primary/20 text-primary border-primary/30"
+                  >
                     Sustainable Materials
                   </Badge>
                 </div>
@@ -155,7 +169,9 @@ const Home = () => {
                     <feature.icon className="h-7 w-7 text-primary" />
                   </div>
                   <h3 className="font-semibold mb-2">{feature.title}</h3>
-                  <p className="text-sm text-muted-foreground">{feature.description}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {feature.description}
+                  </p>
                 </Card>
               </motion.div>
             ))}
@@ -174,7 +190,9 @@ const Home = () => {
           >
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-4">
               <Sparkles className="h-4 w-4 text-primary" />
-              <span className="text-sm font-medium text-primary">Collections</span>
+              <span className="text-sm font-medium text-primary">
+                Collections
+              </span>
             </div>
             <h2 className="text-3xl md:text-4xl font-bold mb-4 bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">
               Explore Our Collections
@@ -186,9 +204,24 @@ const Home = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
-              { title: "Men's Collection", path: "/men", image: menCategory, description: "Modern essentials" },
-              { title: "Women's Collection", path: "/women", image: womenCategory, description: "Elegant styles" },
-              { title: "Unisex Collection", path: "/unisex", image: unisexCategory, description: "Universal appeal" },
+              {
+                title: "Men's Collection",
+                path: "/men",
+                image: menCategory,
+                description: "Modern essentials",
+              },
+              {
+                title: "Women's Collection",
+                path: "/women",
+                image: womenCategory,
+                description: "Elegant styles",
+              },
+              {
+                title: "Unisex Collection",
+                path: "/unisex",
+                image: unisexCategory,
+                description: "Universal appeal",
+              },
             ].map((category, index) => (
               <motion.div
                 key={category.title}
@@ -238,7 +271,9 @@ const Home = () => {
             <div>
               <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-4">
                 <Sparkles className="h-4 w-4 text-primary" />
-                <span className="text-sm font-medium text-primary">Just Landed</span>
+                <span className="text-sm font-medium text-primary">
+                  Just Landed
+                </span>
               </div>
               <h2 className="text-3xl md:text-4xl font-bold mb-2 bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">
                 New Arrivals
@@ -254,7 +289,7 @@ const Home = () => {
               </Link>
             </Button>
           </motion.div>
-          
+
           <motion.div
             initial={{ opacity: 0 }}
             whileInView={{ opacity: 1 }}
@@ -286,7 +321,9 @@ const Home = () => {
           >
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-4">
               <Star className="h-4 w-4 text-primary" />
-              <span className="text-sm font-medium text-primary">Editor's Picks</span>
+              <span className="text-sm font-medium text-primary">
+                Editor's Picks
+              </span>
             </div>
             <h2 className="text-3xl md:text-4xl font-bold mb-4 bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">
               Featured Favorites
@@ -295,7 +332,7 @@ const Home = () => {
               Handpicked selections loved by our community
             </p>
           </motion.div>
-          
+
           <motion.div
             initial={{ opacity: 0 }}
             whileInView={{ opacity: 1 }}
@@ -329,7 +366,8 @@ const Home = () => {
               Ready to Elevate Your Style?
             </h2>
             <p className="text-muted-foreground text-lg mb-8 max-w-2xl mx-auto">
-              Join thousands of customers who trust Atelier for their everyday essentials and statement pieces.
+              Join thousands of customers who trust Atelier for their everyday
+              essentials and statement pieces.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button size="lg" asChild className="gap-2 h-12 px-8">
