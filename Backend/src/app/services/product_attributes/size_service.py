@@ -3,7 +3,7 @@ from typing import Optional, Dict, Any
 import uuid
 
 from sqlmodel.ext.asyncio.session import AsyncSession
-from app.crud.size_crud import size_repository
+from app.crud.product_attributes.size_crud import size_repository
 from app.schemas.size_schema import (
     SizeCreate,
     SizeUpdate,

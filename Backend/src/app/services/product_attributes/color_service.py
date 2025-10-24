@@ -3,7 +3,7 @@ from typing import Optional, Dict, Any
 import uuid
 
 from sqlmodel.ext.asyncio.session import AsyncSession
-from app.crud.color_crud import color_repository
+from app.crud.product_attributes.color_crud import color_repository
 from app.schemas.color_schema import (
     ColorCreate,
     ColorUpdate,

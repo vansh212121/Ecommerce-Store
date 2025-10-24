@@ -1,6 +1,6 @@
 import re
 import uuid
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from typing import Optional, List, Dict, Any
 from pydantic import (
     BaseModel,
@@ -25,11 +25,6 @@ class PromotionBase(BaseModel):
         pattern=r"^[A-Z0-9_-]+$",
         description="Unique promotion code (uppercase letters, numbers, underscores, hyphens allowed).",
         examples=["FIFTYMORE", "SAVE_2025"],
-    )
-    status: PromotionStatus = Field(
-        ...,
-        description="Current status of the promotion code.",
-        examples=["active", "inactive"],
     )
     discount_type: PromotionType = Field(
         ...,
@@ -61,10 +56,15 @@ class PromotionBase(BaseModel):
 
     @field_validator("expires_at")
     @classmethod
-    def validate_expiry_date(cls, v: datetime) -> datetime:
-        """Ensure expiry date is in the future."""
-        if v <= datetime.utcnow():
-            raise ValidationError("Expiry date must be in the future.")
+    def validate_expiry_date(cls, v: Optional[datetime]) -> Optional[datetime]:
+        if v:
+            aware_now_utc = datetime.now(timezone.utc)
+            naive_now_utc = aware_now_utc.replace(tzinfo=None)
+
+            v_naive = v.replace(tzinfo=None) if v.tzinfo else v
+
+            if v_naive <= naive_now_utc:
+                raise ValueError("Expiry date must be in the future.")
         return v
 
     @model_validator(mode="after")
@@ -72,9 +72,9 @@ class PromotionBase(BaseModel):
         if self.discount_type == PromotionType.PERCENTAGE and (
             self.value < 1 or self.value > 100
         ):
-            raise ValueError("Percentage value must be between 1 and 100.")
+            raise ValidationError("Percentage value must be between 1 and 100.")
         if self.discount_type == PromotionType.FIXED and self.value < 1:
-            raise ValueError("Fixed discount value must be positive.")
+            raise ValidationError("Fixed discount value must be positive.")
         return self
 
 
@@ -97,11 +97,6 @@ class PromotionUpdate(BaseModel):
         pattern=r"^[A-Z0-9_-]+$",
         description="Promotion code to update.",
         examples=["FIFTYMORE"],
-    )
-    status: Optional[PromotionStatus] = Field(
-        None,
-        description="Updated status of the promotion.",
-        examples=["inactive"],
     )
     discount_type: Optional[PromotionType] = Field(
         None,
@@ -142,9 +137,15 @@ class PromotionUpdate(BaseModel):
     @field_validator("expires_at")
     @classmethod
     def validate_expiry_date(cls, v: Optional[datetime]) -> Optional[datetime]:
-        """Ensure expiry date (if provided) is in the future."""
-        if v and v <= datetime.utcnow():
-            raise ValidationError("Expiry date must be in the future.")
+        if v:
+
+            aware_now_utc = datetime.now(timezone.utc)
+            naive_now_utc = aware_now_utc.replace(tzinfo=None)
+
+            v_naive = v.replace(tzinfo=None) if v.tzinfo else v
+
+            if v_naive <= naive_now_utc:
+                raise ValueError("Expiry date must be in the future.")
         return v
 
     @model_validator(mode="after")
@@ -156,9 +157,9 @@ class PromotionUpdate(BaseModel):
         # Only validate if value is actually being updated
         if value is not None:
             if discount_type == PromotionType.PERCENTAGE and (value < 1 or value > 100):
-                raise ValueError("Percentage value must be between 1 and 100.")
+                raise ValidationError("Percentage value must be between 1 and 100.")
             if discount_type == PromotionType.FIXED and value < 1:
-                raise ValueError("Fixed discount value must be positive.")
+                raise ValidationError("Fixed discount value must be positive.")
         return self
 
 
@@ -168,6 +169,11 @@ class PromotionResponse(PromotionBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID = Field(..., description="Unique promotion ID.")
+    status: PromotionStatus = Field(
+        ...,
+        description="Current status of the promotion code.",
+        examples=["active", "inactive"],
+    )
     created_at: datetime = Field(
         ..., description="Timestamp when the promotion was created."
     )

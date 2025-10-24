@@ -4,7 +4,7 @@ from slugify import slugify
 from typing import Optional, Dict, Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
-from app.crud.category_crud import category_repository
+from app.crud.product_attributes.category_crud import category_repository
 from app.schemas.category_schema import (
     CategoryCreate,
     CategoryUpdate,
@@ -60,7 +60,7 @@ class CategoryService:
         if current_user.is_admin:
             return
 
-    def _generate_slug(name: str) -> str:
+    def _generate_slug(self, name: str) -> str:
         """Generates a URL-friendly slug from a name."""
         # Use slugify library for robust slug generation
         # It handles unicode, removes special chars, converts to lowercase, replaces spaces with hyphens
