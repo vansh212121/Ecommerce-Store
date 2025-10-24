@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from .product_model import ProductVariant
     from .user_model import User
     from .promotion_model import Promotion
-    from .adress_model import Address
+    from .address_model import Address
 
 
 class OrderStatus(str, PyEnum):

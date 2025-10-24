@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from .wishlist_model import Wishlist
     from .cart_model import Cart
     from .order_model import Order
-    from .adress_model import Address
+    from .address_model import Address
 
 
 class UserRole(str, PyEnum):

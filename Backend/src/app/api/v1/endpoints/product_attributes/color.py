@@ -32,7 +32,6 @@ router = APIRouter(
 )
 
 
-
 @router.get(
     "/all",
     response_model=ColorListResponse,
@@ -56,7 +55,6 @@ async def get_all_colors(
         limit=pagination.limit,
         filters=search_params.model_dump(exclude_none=True),
     )
-
 
 
 @router.get(

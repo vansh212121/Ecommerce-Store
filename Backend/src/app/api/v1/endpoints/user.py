@@ -8,6 +8,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import settings
 from app.schemas.user_schema import UserResponse, UserUpdate
 from app.schemas.auth_schema import UserPasswordChange
+from app.schemas.address_schema import AddressListResponse, AddressSearchParams
+from app.services.address_service import address_service
 from app.models.user_model import User
 from app.db.session import get_session
 from app.utils.deps import (
@@ -145,3 +147,32 @@ async def change_my_password(
     )
 
     return {"message": "Password updated successfully"}
+
+
+@router.get(
+    "/all",
+    response_model=AddressListResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get all addresses",
+    description="Get all addresses with pagination and filtering",
+    dependencies=[Depends(require_user), Depends(rate_limit_api)],
+)
+async def get_my_addresses(
+    *,
+    db: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+    pagination: PaginationParams = Depends(get_pagination_params),
+    search_params: AddressSearchParams = Depends(AddressSearchParams),
+    order_by: str = Query("created_at", description="Field to order by"),
+    order_desc: bool = Query(True, description="Order descending"),
+):
+
+    return await address_service.get_all_user_addresses(
+        db=db,
+        current_user=current_user,
+        skip=pagination.skip,
+        limit=pagination.limit,
+        filters=search_params.model_dump(exclude_none=True),
+        order_by=order_by,
+        order_desc=order_desc,
+    )

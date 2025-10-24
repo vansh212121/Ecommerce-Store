@@ -7,7 +7,7 @@ from app.models.product_model import (
     ProductImage,
     ProductVariant,
 )
-from app.models.adress_model import Address
+from app.models.address_model import Address
 from app.models.order_model import Order, OrderItem
 from app.models.wishlist_model import Wishlist
 from app.models.cart_model import Cart, CartItem
