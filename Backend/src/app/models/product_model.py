@@ -219,7 +219,7 @@ class ProductVariant(SQLModel, table=True):
             nullable=False,
         ),
     )
-
+    
     # --- Price & Stock (The fields you asked about) ---
     price_in_cents: int = Field(sa_column=Column(Integer, default=0, nullable=False))
     discount_price_in_cents: Optional[int] = Field(
