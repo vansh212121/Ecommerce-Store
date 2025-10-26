@@ -236,7 +236,8 @@ class ProductSearchParams(BaseModel):
         max_length=100,
         description="Search in name, description, brand",
     )
-    category_id: Optional[uuid.UUID] = Field(None, description="Filter by category")
+    product_id: Optional[uuid.UUID] = Field(None, description="Filter by product_id")
+    category_id: Optional[uuid.UUID] = Field(None, description="Filter by product_id")
     status: Optional[ProductStatus] = Field(None, description="Filter by status")
     gender: Optional[ProductGender] = Field(None, description="Filter by gender")
     created_after: Optional[date] = Field(None, description="Created after date")
@@ -253,6 +254,42 @@ class ProductSearchParams(BaseModel):
             if self.created_after > self.created_before:
                 raise ValidationError("created_after must be before created_before")
         return self
+
+
+class ProductVariantListResponse(BaseModel):
+    """Paginated response for products."""
+
+    items: List[ProductVariantResponse] = Field(..., description="List of products")
+    total: int = Field(..., ge=0, description="Total number of products")
+    page: int = Field(..., ge=1, description="Current page number")
+    pages: int = Field(..., ge=0, description="Total pages")
+    size: int = Field(..., ge=1, le=100, description="Items per page")
+
+    @property
+    def has_next(self) -> bool:
+        return self.page < self.pages
+
+    @property
+    def has_previous(self) -> bool:
+        return self.page > 1
+
+
+class ProductVariantSearchParams(BaseModel):
+    """Parameters for searching products."""
+
+    search: Optional[str] = Field(
+        None,
+        min_length=1,
+        max_length=100,
+        description="Search in sku",
+    )
+    size_id: Optional[uuid.UUID] = Field(None, description="Filter by size_id")
+    color_id: Optional[uuid.UUID] = Field(None, description="Filter by color_id")
+
+    @field_validator("search")
+    @classmethod
+    def clean_search(cls, v: Optional[str]) -> Optional[str]:
+        return v.strip() if v else v
 
 
 __all__ = [

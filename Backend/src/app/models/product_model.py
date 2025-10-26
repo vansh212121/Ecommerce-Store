@@ -248,3 +248,4 @@ class ProductVariant(SQLModel, table=True):
         back_populates="product_variant",
         sa_relationship_kwargs={"passive_deletes": False},  # Prevent deletion
     )
+
