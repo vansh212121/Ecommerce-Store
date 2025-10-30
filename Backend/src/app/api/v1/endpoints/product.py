@@ -268,7 +268,7 @@ async def delete_image(
     )
 
 
-# ==================PRODUCT VARIANT IMAGE==================
+# ==================PRODUCT VARIANT==================
 
 
 @router.get(
@@ -341,7 +341,7 @@ async def update_variant(
     )
 
 
-@router.patch(
+@router.delete(
     "/{product_id}/variants/{variant_id}",
     status_code=status.HTTP_200_OK,
     response_model=Dict[str, str],

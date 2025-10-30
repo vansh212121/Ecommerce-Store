@@ -234,13 +234,13 @@ class ProductService:
             # 7. Commit the whole transaction
             await db.commit()
 
-            # 8. Refresh the parent to load relations
-            await db.refresh(product_to_create)
-
             self._logger.info(
                 f"New product created: {product_to_create.name} (ID: {product_to_create.id})"
             )
-            return product_to_create
+
+            full_product = await self.product_repository.get(db=db, obj_id=product_id)
+
+            return full_product
 
         except Exception as e:
             await db.rollback()  # Rollback on failure
@@ -334,35 +334,6 @@ class ProductService:
 
         return {"message": "Product deactivated succesfully"}
 
-    async def delete_product(
-        self, db: AsyncSession, *, product_id: uuid.UUID, current_user: User
-    ) -> Dict[str, str]:
-
-        product_to_delete = await self.product_repository.get(db=db, obj_id=product_id)
-        raise_for_status(
-            condition=(product_to_delete is None),
-            exception=ResourceNotFound,
-            detail=f"Product with id {product_id} not found.",
-            resource_type="Product",
-        )
-
-        self._check_authorization(current_user=current_user, action="Delete")
-
-        await self.product_repository.delete(db=db, obj_id=product_id)
-
-        await cache_service.invalidate(Product, product_id)
-
-        self._logger.warning(
-            f"Product {product_id} permanently deleted by {current_user.id}",
-            extra={
-                "deleted_product_id": product_id,
-                "deleter_id": current_user.id,
-                "deleted_product_name": product_to_delete.name,
-            },
-        )
-
-        return {"message": "Product deleted succesfully"}
-
     async def _validate_product_update(
         self, db: AsyncSession, product_data: ProductUpdate, existing_product: Product
     ) -> None:
@@ -408,7 +379,9 @@ class ProductService:
 
         self._check_authorization(current_user=current_user, action="Create")
 
-        await self.get_product_by_id(db=db, current_user=current_user, product_id=product_id)
+        await self.get_product_by_id(
+            db=db, current_user=current_user, product_id=product_id
+        )
 
         image_dict = image_data.model_dump()
         image_dict["product_id"] = product_id
@@ -585,7 +558,11 @@ class ProductService:
 
         await cache_service.invalidate(Product, product_id)
 
-        return new_variant
+        full_variant = await self.product_repository.get_variant(
+            db=db, variant_id=new_variant.id
+        )
+
+        return full_variant
 
     async def update_variant(
         self,
@@ -688,6 +665,62 @@ class ProductService:
 
         return {"message": "Product Variant deleted succesfully"}
 
+    async def delete_product(
+        self, db: AsyncSession, *, product_id: uuid.UUID, current_user: User
+    ) -> Dict[str, str]:
+
+        product_to_delete = await self.product_repository.get(db=db, obj_id=product_id)
+        raise_for_status(
+            condition=(product_to_delete is None),
+            exception=ResourceNotFound,
+            detail=f"Product with id {product_id} not found.",
+            resource_type="Product",
+        )
+
+        self._check_authorization(current_user=current_user, action="Delete")
+
+        # delete Image and variants linked to product
+
+        try:
+            await self.product_repository.delete_images_by_product_id(
+                db=db, product_id=product_id
+            )
+            await self.product_repository.delete_variants_by_product_id(
+                db=db, product_id=product_id
+            )
+
+            await self.product_repository.delete(db=db, obj_id=product_id)
+
+            await db.commit()
+
+        except Exception as e:
+            await db.rollback()
+            self._logger.error(
+                f"Failed to hard-delete product {product_id}: {e}", exc_info=True
+            )
+            # This will catch the inevitable ForeignKeyViolationError from OrderItem
+            if "violates foreign key constraint" in str(e):
+                raise ValidationError(
+                    detail="Cannot delete this product. Its variants are referenced in existing carts or orders."
+                )
+            raise InternalServerError(
+                detail="An error occurred during product deletion."
+            )
+        # --- END FIX ---
+
+        await cache_service.invalidate(Product, product_id)
+
+        self._logger.warning(
+            f"Product {product_id} permanently deleted by {current_user.id}",
+            extra={
+                "deleted_product_id": product_id,
+                "deleter_id": current_user.id,
+                "deleted_product_name": product_to_delete.name,
+            },
+        )
+
+        return {"message": "Product deleted succesfully"}
+
     async def _validate_product_variant_update(
         self,
         db: AsyncSession,
@@ -725,6 +758,26 @@ class ProductService:
                 raise ResourceAlreadyExists(
                     "A variant with this Size and Color combination already exists for this product."
                 )
+        final_price = (
+            variant_data.price_in_cents
+            if variant_data.price_in_cents is not None
+            else existing_variant.price_in_cents
+        )
+        final_discount_price = (
+            variant_data.discount_price_in_cents
+            if variant_data.discount_price_in_cents is not None
+            else existing_variant.discount_price_in_cents
+        )
+
+        # Now check if the final state is valid
+        if (
+            final_discount_price is not None
+            and final_price is not None  # Should always be true, but good to check
+            and final_discount_price > final_price
+        ):
+            raise ValidationError(
+                detail=f"Discount price ({final_discount_price}) cannot be greater than the regular price ({final_price})."
+            )
 
 
 product_service = ProductService()

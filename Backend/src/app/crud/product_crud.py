@@ -370,6 +370,51 @@ class ProductRepository(BaseRepository[Product]):
         self._logger.info(f"Product Variant Hard Deleted {variant_id}")
         return
 
+    # Helpers
+    @handle_exceptions(
+        default_exception=InternalServerError,
+        message="An unexpected database error occurred while deleting product images.",
+    )
+    async def delete_images_by_product_id(
+        self, db: AsyncSession, *, product_id: uuid.UUID
+    ) -> int:
+        """Deletes all ProductImage entries associated with a product_id."""
+        statement = delete(ProductImage).where(ProductImage.product_id == product_id)
+        result = await db.execute(statement)
+        # We don't commit here; let the service handle the transaction.
+        self._logger.info(f"Deleted {result.rowcount} images for product {product_id}")
+        return result.rowcount
+
+    @handle_exceptions(
+        default_exception=InternalServerError,
+        message="An unexpected database error occurred while deleting product variants.",
+    )
+    async def delete_variants_by_product_id(
+        self, db: AsyncSession, *, product_id: uuid.UUID
+    ) -> int:
+        """Deletes all ProductVariant entries associated with a product_id."""
+        statement = delete(ProductVariant).where(
+            ProductVariant.product_id == product_id
+        )
+        result = await db.execute(statement)
+        self._logger.info(
+            f"Deleted {result.rowcount} variants for product {product_id}"
+        )
+        return result.rowcount
+
+    # @handle_exceptions(
+    #     default_exception=InternalServerError,
+    #     message="An unexpected database error occurred while deleting wishlist items.",
+    # )
+    # async def delete_wishlist_items_by_product_id(self, db: AsyncSession, *, product_id: uuid.UUID) -> int:
+    #     """Deletes all Wishlist entries associated with a product_id."""
+    #     # Need to import Wishlist model at the top of the file
+    #     from app.models.wishlist_model import Wishlist
+    #     statement = delete(Wishlist).where(Wishlist.product_id == product_id)
+    #     result = await db.execute(statement)
+    #     self._logger.info(f"Deleted {result.rowcount} wishlist items for product {product_id}")
+    #     return result.rowcount
+
     def _apply_filters(self, query, filters: Dict[str, Any]):
         """Apply filters to query."""
         conditions = []

@@ -68,6 +68,11 @@ class AuthService:
 
         # 2. Fetch the user from databse
         user = await user_repository.get_by_email(db=db, email=email)
+        raise_for_status(
+            condition=user is None,
+            exception=InvalidCredentials,
+            detail="Incorrect email or password"
+        )
 
         # 3. Verify the user and password
         password_is_valid = user and password_manager.verify_password(
