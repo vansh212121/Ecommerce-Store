@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 
 from sqlmodel.ext.asyncio.session import AsyncSession
+from sqlalchemy.orm import selectinload
 from sqlmodel import select, func, and_, or_, delete
 
 from app.core.exception_utils import handle_exceptions
@@ -57,7 +58,18 @@ class ProductRepository(BaseRepository[Product]):
     async def get(self, db: AsyncSession, *, obj_id: uuid.UUID) -> Optional[Product]:
         """get a product by it's ID"""
 
-        statement = select(self.model).where(self.model.id == obj_id)
+        statement = (
+            select(self.model)
+            .where(self.model.id == obj_id)
+            .options(
+                selectinload(self.model.images),
+                selectinload(self.model.category),
+                selectinload(self.model.variants).options(
+                    selectinload(ProductVariant.size),
+                    selectinload(ProductVariant.color),
+                ),
+            )
+        )
         result = await db.execute(statement)
         return result.scalar_one_or_none()
 
@@ -87,7 +99,15 @@ class ProductRepository(BaseRepository[Product]):
         order_desc: bool = True,
     ) -> Tuple[List[Product], int]:
         """Get multiple products with filtering and pagination."""
-        query = select(self.model)
+
+        query = select(self.model).options(
+            selectinload(self.model.images),
+            selectinload(self.model.category),
+            selectinload(self.model.variants).options(
+                selectinload(ProductVariant.size),
+                selectinload(ProductVariant.color),
+            ),
+        )
 
         # Apply filters
         if filters:
@@ -209,7 +229,14 @@ class ProductRepository(BaseRepository[Product]):
     ) -> Optional[ProductVariant]:
         """Get a variant by it's ID"""
 
-        statement = select(ProductVariant).where(ProductVariant.id == variant_id)
+        statement = (
+            select(ProductVariant)
+            .where(ProductVariant.id == variant_id)
+            .options(
+                selectinload(ProductVariant.size),
+                selectinload(ProductVariant.color),
+            )
+        )
         result = await db.execute(statement)
         return result.scalar_one_or_none()
 
@@ -261,7 +288,14 @@ class ProductRepository(BaseRepository[Product]):
         filters: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[ProductVariant], int]:
         """Get multiple products with filtering and pagination."""
-        query = select(ProductVariant).where(ProductVariant.product_id == product_id)
+        query = (
+            select(ProductVariant)
+            .where(ProductVariant.product_id == product_id)
+            .options(
+                selectinload(ProductVariant.size),
+                selectinload(ProductVariant.color),
+            )
+        )
 
         # Apply filters
         if filters:
