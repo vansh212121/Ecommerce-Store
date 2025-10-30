@@ -116,6 +116,23 @@ class ProductService:
         self._logger.debug(f"Product {product_id} retrieved by user {current_user.id}")
         return product
 
+    async def get_active_product_by_id(
+        self,
+        db: AsyncSession,
+        *,
+        product_id: uuid.UUID,
+    ) -> Optional[ProductResponse]:
+        """"""
+
+        product = await self.product_repository.get(db=db, obj_id=product_id)
+        raise_for_status(
+            condition=(product is None or product.status == ProductStatus.INACTIVE),
+            exception=ResourceNotFound,
+            detail=f"Product with ID {product_id} not Found.",
+            resource_type="Product",
+        )
+        return product
+
     async def get_all_products(
         self,
         db: AsyncSession,
@@ -158,6 +175,47 @@ class ProductService:
 
         self._logger.info(
             f"Product list retrieved by {current_user.id}: {len(products)} products returned"
+        )
+        return response
+
+    async def get_all_active_products(
+        self,
+        *,
+        db: AsyncSession,
+        skip: int = 0,
+        limit: int = 50,
+        filters: Optional[Dict[str, Any]] = None,
+        order_by: str = "created_at",
+        order_desc: bool = True,
+    ) -> ProductListResponse:
+        """"""
+        # Input validation
+        if skip < 0:
+            raise ValidationError("Skip parameter must be non-negative")
+        if limit <= 0 or limit > 100:
+            raise ValidationError("Limit must be between 1 and 100")
+
+        # Delegate fetching to the repository
+        products, total = await self.product_repository.get_all_active(
+            db=db,
+            skip=skip,
+            limit=limit,
+            filters=filters,
+            order_by=order_by,
+            order_desc=order_desc,
+        )
+
+        # Calculate pagination info
+        page = (skip // limit) + 1
+        total_pages = (total + limit - 1) // limit  # Ceiling division
+
+        # Construct the response schema
+        response = ProductListResponse(
+            items=products, total=total, page=page, pages=total_pages, size=limit
+        )
+
+        self._logger.info(
+            f"Product list retrieved: {len(products)} products returned"
         )
         return response
 
@@ -333,6 +391,62 @@ class ProductService:
         )
 
         return {"message": "Product deactivated succesfully"}
+
+    async def delete_product(
+        self, db: AsyncSession, *, product_id: uuid.UUID, current_user: User
+    ) -> Dict[str, str]:
+
+        product_to_delete = await self.product_repository.get(db=db, obj_id=product_id)
+        raise_for_status(
+            condition=(product_to_delete is None),
+            exception=ResourceNotFound,
+            detail=f"Product with id {product_id} not found.",
+            resource_type="Product",
+        )
+
+        self._check_authorization(current_user=current_user, action="Delete")
+
+        # delete Image and variants linked to product
+
+        try:
+            await self.product_repository.delete_images_by_product_id(
+                db=db, product_id=product_id
+            )
+            await self.product_repository.delete_variants_by_product_id(
+                db=db, product_id=product_id
+            )
+
+            await self.product_repository.delete(db=db, obj_id=product_id)
+
+            await db.commit()
+
+        except Exception as e:
+            await db.rollback()
+            self._logger.error(
+                f"Failed to hard-delete product {product_id}: {e}", exc_info=True
+            )
+            # This will catch the inevitable ForeignKeyViolationError from OrderItem
+            if "violates foreign key constraint" in str(e):
+                raise ValidationError(
+                    detail="Cannot delete this product. Its variants are referenced in existing carts or orders."
+                )
+            raise InternalServerError(
+                detail="An error occurred during product deletion."
+            )
+        # --- END FIX ---
+
+        await cache_service.invalidate(Product, product_id)
+
+        self._logger.warning(
+            f"Product {product_id} permanently deleted by {current_user.id}",
+            extra={
+                "deleted_product_id": product_id,
+                "deleter_id": current_user.id,
+                "deleted_product_name": product_to_delete.name,
+            },
+        )
+
+        return {"message": "Product deleted succesfully"}
 
     async def _validate_product_update(
         self, db: AsyncSession, product_data: ProductUpdate, existing_product: Product
@@ -664,62 +778,6 @@ class ProductService:
         )
 
         return {"message": "Product Variant deleted succesfully"}
-
-    async def delete_product(
-        self, db: AsyncSession, *, product_id: uuid.UUID, current_user: User
-    ) -> Dict[str, str]:
-
-        product_to_delete = await self.product_repository.get(db=db, obj_id=product_id)
-        raise_for_status(
-            condition=(product_to_delete is None),
-            exception=ResourceNotFound,
-            detail=f"Product with id {product_id} not found.",
-            resource_type="Product",
-        )
-
-        self._check_authorization(current_user=current_user, action="Delete")
-
-        # delete Image and variants linked to product
-
-        try:
-            await self.product_repository.delete_images_by_product_id(
-                db=db, product_id=product_id
-            )
-            await self.product_repository.delete_variants_by_product_id(
-                db=db, product_id=product_id
-            )
-
-            await self.product_repository.delete(db=db, obj_id=product_id)
-
-            await db.commit()
-
-        except Exception as e:
-            await db.rollback()
-            self._logger.error(
-                f"Failed to hard-delete product {product_id}: {e}", exc_info=True
-            )
-            # This will catch the inevitable ForeignKeyViolationError from OrderItem
-            if "violates foreign key constraint" in str(e):
-                raise ValidationError(
-                    detail="Cannot delete this product. Its variants are referenced in existing carts or orders."
-                )
-            raise InternalServerError(
-                detail="An error occurred during product deletion."
-            )
-        # --- END FIX ---
-
-        await cache_service.invalidate(Product, product_id)
-
-        self._logger.warning(
-            f"Product {product_id} permanently deleted by {current_user.id}",
-            extra={
-                "deleted_product_id": product_id,
-                "deleter_id": current_user.id,
-                "deleted_product_name": product_to_delete.name,
-            },
-        )
-
-        return {"message": "Product deleted succesfully"}
 
     async def _validate_product_variant_update(
         self,

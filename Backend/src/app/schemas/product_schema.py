@@ -1,4 +1,5 @@
 import uuid
+from fastapi import Query
 from typing import Optional, List, Dict, Any
 from datetime import datetime, date
 from pydantic import (
@@ -253,6 +254,70 @@ class ProductSearchParams(BaseModel):
         if self.created_after and self.created_before:
             if self.created_after > self.created_before:
                 raise ValidationError("created_after must be before created_before")
+        return self
+
+
+class ProductPublicSearchParams(BaseModel):
+    """Parameters for public product search and filtering."""
+
+    search: Optional[str] = Field(
+        None,
+        min_length=1,
+        max_length=100,
+        description="Search keyword matching product name, description, or brand.",
+    )
+    category_id: Optional[uuid.UUID] = Field(None, description="Filter by category ID.")
+    size_ids: Optional[List[uuid.UUID]] = Field(
+        Query(None), description="Filter by a list of size IDs."
+    )
+    color_ids: Optional[List[uuid.UUID]] = Field(
+        Query(None), description="Filter by a list of color IDs."
+    )
+    gender: Optional[ProductGender] = Field(
+        None, description="Filter by intended gender (e.g., MEN, WOMEN)."
+    )
+    min_price: Optional[int] = Field(
+        None,
+        ge=0,
+        description="Minimum product price in cents (must be non-negative).",
+        examples=[1000],
+    )
+    max_price: Optional[int] = Field(
+        None,
+        ge=0,
+        description="Maximum product price in cents (must be non-negative).",
+        examples=[10000],
+    )
+    created_after: Optional[date] = Field(None, description="Created after date")
+    created_before: Optional[date] = Field(None, description="Created before date")
+
+    # --- Clean search string ---
+    @field_validator("search")
+    @classmethod
+    def clean_search(cls, v: Optional[str]) -> Optional[str]:
+        """Trim whitespace and ensure search isn't only spaces."""
+        if v is not None:
+            v = v.strip()
+            if not v:
+                raise ValidationError("Search query cannot be empty or whitespace.")
+        return v
+
+    # --- Validate price range ---
+    @model_validator(mode="after")
+    def validate_price_range(self) -> "ProductPublicSearchParams":
+        """Ensure min_price is less than or equal to max_price."""
+        if self.min_price is not None and self.max_price is not None:
+            if self.min_price > self.max_price:
+                raise ValidationError("min_price cannot be greater than max_price.")
+        return self
+
+    # --- Validate date range ---
+    @model_validator(mode="after")
+    def validate_date_range(self) -> "ProductPublicSearchParams":
+        """Ensure created_after is earlier than created_before."""
+        if self.created_after and self.created_before:
+            if self.created_after > self.created_before:
+                raise ValidationError("created_after must be before created_before.")
         return self
 
 

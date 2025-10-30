@@ -11,7 +11,12 @@ from sqlmodel import select, func, and_, or_, delete
 from app.core.exception_utils import handle_exceptions
 from app.core.exceptions import InternalServerError
 
-from app.models.product_model import Product, ProductImage, ProductVariant
+from app.models.product_model import (
+    Product,
+    ProductImage,
+    ProductVariant,
+    ProductStatus,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -124,6 +129,53 @@ class ProductRepository(BaseRepository[Product]):
         paginated_query = query.offset(skip).limit(limit)
         result = await db.execute(paginated_query)
         products = result.scalars().all()
+
+        return products, total
+
+    @handle_exceptions(
+        default_exception=InternalServerError,
+        message="An unexpected database error occurred.",
+    )
+    async def get_all_active(
+        self,
+        db: AsyncSession,
+        *,
+        skip: int = 0,
+        limit: int = 100,
+        filters: Optional[Dict[str, Any]] = None,
+        order_by: str = "created_at",
+        order_desc: bool = True,
+    ) -> Tuple[List[Product], int]:
+        """Get multiple products with filtering and pagination."""
+
+        query = (
+            select(self.model)
+            .where(self.model.status == ProductStatus.ACTIVE)
+            .options(
+                selectinload(self.model.images),
+                selectinload(self.model.category),
+                selectinload(self.model.variants).options(
+                    selectinload(ProductVariant.size),
+                    selectinload(ProductVariant.color),
+                ),
+            )
+        )
+
+        # Apply filters
+        if filters:
+            query = self._apply_public_product_filters(query, filters)
+
+        # Count total
+        count_query = select(func.count()).select_from(query.subquery())
+        total = (await db.execute(count_query)).scalar_one()
+
+        # Apply ordering
+        query = self._apply_ordering(query, order_by, order_desc)
+
+        # Apply pagination
+        paginated_query = query.offset(skip).limit(limit)
+        result = await db.execute(paginated_query)
+        products = result.unique().scalars().all()
 
         return products, total
 
@@ -442,6 +494,69 @@ class ProductRepository(BaseRepository[Product]):
 
         if conditions:
             query = query.where(and_(*conditions))
+
+        return query
+
+    def _apply_public_product_filters(self, query, filters: Dict[str, Any]):
+        """
+        Applies complex public-facing filters to a Product query.
+        Handles JOINs to variants as needed.
+        """
+        # --- Separate filters for each table ---
+        product_conditions = []
+        variant_conditions = []
+
+        # --- Product-level Filters ---
+        if "gender" in filters and filters["gender"]:
+            product_conditions.append(Product.gender == filters["gender"])
+
+        if "category_id" in filters and filters["category_id"]:
+            product_conditions.append(Product.category_id == filters["category_id"])
+
+        if "search" in filters and filters["search"]:
+            search_term = f"%{filters['search']}%"
+            product_conditions.append(
+                or_(
+                    Product.name.ilike(search_term),
+                    Product.brand.ilike(search_term),
+                    Product.description.ilike(search_term),  # Search description too
+                )
+            )
+
+        # --- ProductVariant-level Filters ---
+        # (These require a JOIN)
+        if "size_ids" in filters and filters["size_ids"]:
+            # Handle a list of size IDs
+            variant_conditions.append(ProductVariant.size_id.in_(filters["size_ids"]))
+
+        if "color_ids" in filters and filters["color_ids"]:
+            # Handle a list of color IDs
+            variant_conditions.append(ProductVariant.color_id.in_(filters["color_ids"]))
+
+        if "min_price" in filters and filters["min_price"] is not None:
+            # Use price range, not exact price
+            variant_conditions.append(
+                ProductVariant.price_in_cents >= filters["min_price"]
+            )
+
+        if "max_price" in filters and filters["max_price"] is not None:
+            variant_conditions.append(
+                ProductVariant.price_in_cents <= filters["max_price"]
+            )
+
+        # --- Apply the filter conditions ---
+
+        # Apply Product-level conditions
+        if product_conditions:
+            query = query.where(and_(*product_conditions))
+
+        # If there are any variant filters, we MUST add the JOIN and WHERE clauses
+        if variant_conditions:
+            query = (
+                query.join(ProductVariant, Product.id == ProductVariant.product_id)
+                .where(and_(*variant_conditions))
+                .distinct()  # Use distinct to avoid duplicate products
+            )
 
         return query
 

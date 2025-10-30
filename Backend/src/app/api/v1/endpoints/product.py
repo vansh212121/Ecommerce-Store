@@ -12,6 +12,7 @@ from app.schemas.product_schema import (
     ProductResponse,
     ProductListResponse,
     ProductSearchParams,
+    ProductPublicSearchParams,
     # PRODUCT VARIANT
     ProductVariantCreate,
     ProductVariantResponse,
@@ -360,3 +361,53 @@ async def delete_variant(
     return await product_service.delete_variant(
         db=db, current_user=current_user, variant_id=variant_id, product_id=product_id
     )
+
+
+# ========================USER ENDPOINT===============
+
+
+@router.get(
+    "/active/all",
+    status_code=status.HTTP_200_OK,
+    response_model=ProductListResponse,
+    summary="Get all products",
+    description="Get product bwith pagination and filtering support",
+    dependencies=[Depends(rate_limit_api)],
+)
+async def get_all_active_products(
+    *,
+    db: AsyncSession = Depends(get_session),
+    pagination: PaginationParams = Depends(get_pagination_params),
+    search_params: ProductPublicSearchParams = Depends(ProductPublicSearchParams),
+    order_by: str = Query("created_at", description="Field to order by"),
+    order_desc: bool = Query(True, description="Order descending"),
+):
+
+    return await product_service.get_all_active_products(
+        db=db,
+        skip=pagination.skip,
+        limit=pagination.limit,
+        filters=search_params.model_dump(exclude_none=True),
+        order_by=order_by,
+        order_desc=order_desc,
+    )
+
+@router.get(
+    "/{product_id}/active",
+    status_code=status.HTTP_200_OK,
+    response_model=ProductResponse,
+    summary="Get product",
+    description="Get product by it's ID",
+    dependencies=[Depends(rate_limit_api)],
+)
+async def get_product_active_by_id(
+    product_id: uuid.UUID,
+    *,
+    db: AsyncSession = Depends(get_session),
+):
+    """Fetch a product by it's ID"""
+
+    return await product_service.get_active_product_by_id(
+        db=db, product_id=product_id
+    )
+
