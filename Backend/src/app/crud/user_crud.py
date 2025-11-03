@@ -80,7 +80,7 @@ class UserRepository(BaseRepository[User]):
         statement = select(self.model).where(self.model.name == name)
         result = await db.execute(statement)
         return result.scalar_one_or_none()
-
+    
     @handle_exceptions(
         default_exception=InternalServerError,
         message="An unexpected database error occurred.",
