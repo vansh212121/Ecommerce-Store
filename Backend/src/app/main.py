@@ -7,9 +7,18 @@ from app.core.exception_handler import register_exception_handlers
 from app.db.session import db
 from app.db.redis_conn import redis_client_instance
 from app.utils.deps import get_health_status
-from app.api.v1.endpoints import user, auth, admin, promotion, address, product
+from app.api.v1.endpoints import (
+    user,
+    auth,
+    admin,
+    promotion,
+    address,
+    product,
+    wishlist,
+)
 from app.api.v1.endpoints.product_attributes import size, color, category
 from app.db import base
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -46,6 +55,7 @@ def create_application() -> FastAPI:
     app.include_router(promotion.router)
     app.include_router(address.router)
     app.include_router(product.router)
+    app.include_router(wishlist.router)
 
     app.add_middleware(
         CORSMiddleware,

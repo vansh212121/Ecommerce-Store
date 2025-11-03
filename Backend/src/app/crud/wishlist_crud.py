@@ -7,6 +7,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select, func, delete
 from sqlalchemy.orm import selectinload
 
+from app.models.product_model import Product, ProductVariant
 from app.core.exception_utils import handle_exceptions
 from app.core.exceptions import InternalServerError
 
@@ -64,8 +65,19 @@ class WishlistRepository(BaseRepository[Wishlist]):
     ) -> Optional[Wishlist]:
         """"""
 
-        statement = select(self.model).where(
-            self.model.user_id == user_id, self.model.product_id == product_id
+        statement = (
+            select(self.model)
+            .where(self.model.user_id == user_id, self.model.product_id == product_id)
+            .options(
+                selectinload(self.model.product).options(
+                    selectinload(Product.images),
+                    selectinload(Product.category),
+                    selectinload(Product.variants).options(
+                        selectinload(ProductVariant.size),
+                        selectinload(ProductVariant.color),
+                    ),
+                )
+            )
         )
         result = await db.execute(statement)
         return result.scalar_one_or_none()
@@ -89,7 +101,16 @@ class WishlistRepository(BaseRepository[Wishlist]):
         query = (
             select(self.model)
             .where(self.model.user_id == user_id)
-            .options(selectinload(self.model.product))
+            .options(
+                selectinload(self.model.product).options(
+                    selectinload(Product.images),
+                    selectinload(Product.category),
+                    selectinload(Product.variants).options(
+                        selectinload(ProductVariant.size),
+                        selectinload(ProductVariant.color),
+                    ),
+                )
+            )
         )
 
         # Count total

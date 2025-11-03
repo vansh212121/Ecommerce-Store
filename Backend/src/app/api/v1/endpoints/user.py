@@ -10,6 +10,8 @@ from app.schemas.user_schema import UserResponse, UserUpdate
 from app.schemas.auth_schema import UserPasswordChange
 from app.schemas.address_schema import AddressListResponse, AddressSearchParams
 from app.services.address_service import address_service
+from app.schemas.wishlist_schema import WishlistListResponse
+from app.services.wishlist_service import wishlist_service
 from app.models.user_model import User
 from app.db.session import get_session
 from app.utils.deps import (
@@ -173,6 +175,33 @@ async def get_my_addresses(
         skip=pagination.skip,
         limit=pagination.limit,
         filters=search_params.model_dump(exclude_none=True),
+        order_by=order_by,
+        order_desc=order_desc,
+    )
+
+
+@router.get(
+    "/wishlist",
+    response_model=WishlistListResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get my wishlist products",
+    description="Fetch all products in my Wishlist with pagination",
+    dependencies=[Depends(require_user), Depends(rate_limit_api)],
+)
+async def get_my_wishlist(
+    *,
+    db: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_active_user),
+    pagination: PaginationParams = Depends(get_pagination_params),
+    order_by: str = Query("created_at", description="Field to order by"),
+    order_desc: bool = Query(True, description="Order descending"),
+):
+
+    return await wishlist_service.get_full_wishlist(
+        db=db,
+        current_user=current_user,
+        skip=pagination.skip,
+        limit=pagination.limit,
         order_by=order_by,
         order_desc=order_desc,
     )
